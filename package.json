@@ -1,0 +1,17 @@
+{
+  "name": "funky-toun",
+  "version": "2.0.2",
+  "description": "Funktional Utility Library",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepublish": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dbtaylor/funky-town"
+  },
+  "author": "David Taylor",
+  "license": "MIT"
+}
