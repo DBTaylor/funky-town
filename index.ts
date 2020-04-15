@@ -588,3 +588,82 @@ export function over<T,
     }
     return dest
 }
+
+
+export type Update<S> = Partial<S> | ((s: S) => Partial<S>)
+
+export type Action<S> = 
+    | Update<S>
+    | Promise<Update<S>>
+    | ['yield_and', Update<S>, Promise<Action<S>>]
+    | ['yield_then', Update<S>, Promise<(s: S) => Action<S>>]
+
+export type Setter<S> = (f: (s: S) => S) => unknown
+
+export type UnboundAction<S, Args extends any[]> = ((...args: Args) => Action<S>)
+
+export const assignPartial = <S>(s: S, p: Partial<S>): S => {
+    const obj = Object.assign({}, s)
+    return Object.assign(obj, p)
+}
+
+const applyUpdate = <S>(setter: Setter<S>, update: Update<S>) => 
+    setter(
+            (s: S) => assignPartial(s, (typeof update == 'function') ? update(s) : update)
+    )
+
+
+const executeAction = <S>(setter: Setter<S>, action: Action<S>) => {
+    if (Array.isArray(action)){
+        if (action[0] == 'yield_and'){
+            applyUpdate(setter, action[1]);
+            (action[2] as Promise<Action<S>>).then((a: Action<S>) => executeAction(setter, a))
+        }
+        else{
+            applyUpdate(setter, action[1]);
+            (action[2] as Promise<(s: S) => Action<S>>).then((a: (s: S) => Action<S>) => 
+                setter((s: S) => {
+                    setTimeout(() => executeAction(setter, a(s)), 0)
+                    return s
+                })
+            )
+        }
+        return
+    }
+     if (typeof (action as any).then == 'function'){
+         (action as Promise<Update<S>>).then(u => applyUpdate(setter, u))
+     }
+     else{
+         applyUpdate(setter, action as Update<S>)
+     }
+}
+
+export const bindAction = <S, Args extends any[]>(setter: Setter<S>, action: UnboundAction<S, Args>) => 
+    (...args: Args) => 
+        executeAction(setter, action(...args))
+
+export type All<T> = {
+    [P: string]: T;
+}
+
+export const objectMap = <T extends any>(object: object, mapFn: (p: object[(keyof object)]) => T): All<T> =>
+    Object.keys(object).reduce(function(result, key) {
+        (result as any)[key] = mapFn(object[key as never])
+        return result as any
+    }, {}) as All<T>
+
+export const actions = <S, Acts extends All<UnboundAction<S, any[]>>>(setter: Setter<S>, actions: Acts): BoundActions<Acts> =>
+    objectMap(actions, (action) => bindAction(setter, action)) as any
+
+export type BoundActions<T> = {
+    [P in keyof T]:
+        T[P] extends UnboundAction<infer S, infer Args> ?
+            (...args: Args) => unknown
+        : never
+}
+
+const yield_and = <S>(update: Update<S>, promise: Promise<Action<S>>) =>
+    ['yield_and', update, promise] as ['yield_and', Update<S>, Promise<Action<S>>]
+
+const yield_then = <S>(update: Update<S>, promise: Promise<(s: S) => Action<S>>) =>
+    ['yield_then', update, promise] as ['yield_then', Update<S>, Promise<(s: S) => Action<S>>]

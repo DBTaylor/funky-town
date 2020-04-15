@@ -83,3 +83,56 @@ function over(source, path, f) {
     return dest;
 }
 exports.over = over;
+exports.assignPartial = function (s, p) {
+    var obj = Object.assign({}, s);
+    return Object.assign(obj, p);
+};
+var bindAction = function (setter, action) {
+    return function () {
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i] = arguments[_i];
+        }
+        return setter(function (s) {
+            return exports.assignPartial(s, action.apply(void 0, __spreadArrays([s], args)));
+        });
+    };
+};
+var bindAsyncAction = function (setter, action) {
+    return function () {
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i] = arguments[_i];
+        }
+        return setter(function (s) {
+            var res = action.apply(void 0, __spreadArrays([s], args));
+            if (Array.isArray(res)) {
+                var partial = res[0], p = res[1];
+                return exports.assignPartial(s, partial);
+            }
+            else {
+                res.then(function (v) {
+                    return (typeof v == 'function') ?
+                        setter(function (s) { return exports.assignPartial(s, v(s)); })
+                        : setter(function (s) { return exports.assignPartial(s, v); });
+                });
+                return s;
+            }
+        });
+    };
+};
+exports.objectMap = function (object, mapFn) {
+    return Object.keys(object).reduce(function (result, key) {
+        result[key] = mapFn(object[key]);
+        return result;
+    }, {});
+};
+var bindSyncActions = function (acts, setter) {
+    return exports.objectMap(acts, function (act) { return bindAction(setter, act); });
+};
+var bindAsyncActions = function (acts, setter) {
+    return exports.objectMap(acts, function (act) { return bindAsyncAction(setter, act); });
+};
+exports.actions = function (acts, asyncActs, setter) {
+    return Object.assign(bindSyncActions(acts, setter), bindAsyncActions(asyncActs, setter));
+};

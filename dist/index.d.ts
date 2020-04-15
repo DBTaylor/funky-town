@@ -37,3 +37,14 @@ export declare function over<T, U extends keyof T, V extends keyof T[U], W exten
 export declare function over<T, U extends keyof T, V extends keyof T[U], W extends keyof T[U][V], X extends keyof T[U][V][W]>(source: T, path: readonly [U, V, W, X], f: (_: T[U][V][W][X]) => T[U][V][W][X]): T;
 export declare function over<T, U extends keyof T, V extends keyof T[U], W extends keyof T[U][V], X extends keyof T[U][V][W], Y extends keyof T[U][V][W][X]>(source: T, path: readonly [U, V, W, X, Y], f: (_: T[U][V][W][X][Y]) => T[U][V][W][X][Y]): T;
 export declare function over<T, U extends keyof T, V extends keyof T[U], W extends keyof T[U][V], X extends keyof T[U][V][W], Y extends keyof T[U][V][W][X], Z extends keyof T[U][V][W][X][Y]>(source: T, path: readonly [U, V, W, X, Y, Z], f: (_: T[U][V][W][X][Y][Z]) => T[U][V][W][X][Y][Z]): T;
+export declare type UnboundAction<S, Args extends any[]> = (s: S, ...args: Args) => Partial<S>;
+export declare type UnboundAsyncAction<S, Args extends any[]> = ((s: S, ...args: Args) => Promise<((s: S) => Partial<S>) | Partial<S>>) | ((s: S, ...args: Args) => [Partial<S>, Promise<((s: S) => Partial<S>) | Partial<S>>]);
+export declare const assignPartial: <S>(s: S, p: Partial<S>) => S;
+export declare type All<T> = {
+    [P: string]: T;
+};
+export declare const objectMap: <T>(object: object, mapFn: (p: never) => T) => All<T>;
+export declare const actions: <S, Acts extends All<UnboundAction<S, any[]>>, AsyncActs extends All<UnboundAsyncAction<S, any[]>>>(acts: Acts, asyncActs: AsyncActs, setter: (f: (s: S) => S) => unknown) => BoundActions<Acts> & BoundActions<AsyncActs>;
+export declare type BoundActions<T> = {
+    [P in keyof T]: T[P] extends UnboundAction<infer S, infer Args> ? (...args: Args) => unknown : T[P] extends UnboundAsyncAction<infer S, infer Args> ? (...args: Args) => unknown : never;
+};
