@@ -87,38 +87,40 @@ exports.assignPartial = function (s, p) {
     var obj = Object.assign({}, s);
     return Object.assign(obj, p);
 };
-var bindAction = function (setter, action) {
-    return function () {
-        var args = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            args[_i] = arguments[_i];
-        }
-        return setter(function (s) {
-            return exports.assignPartial(s, action.apply(void 0, __spreadArrays([s], args)));
-        });
-    };
+var applyUpdate = function (setter, update) {
+    return setter(function (s) { return exports.assignPartial(s, (typeof update == 'function') ? update(s) : update); });
 };
-var bindAsyncAction = function (setter, action) {
+var executeAction = function (setter, action) {
+    if (Array.isArray(action)) {
+        if (action[0] == 'yield_and') {
+            applyUpdate(setter, action[1]);
+            action[2].then(function (a) { return executeAction(setter, a); });
+        }
+        else {
+            applyUpdate(setter, action[1]);
+            action[2].then(function (a) {
+                return setter(function (s) {
+                    setTimeout(function () { return executeAction(setter, a(s)); }, 0);
+                    return s;
+                });
+            });
+        }
+        return;
+    }
+    if (typeof action.then == 'function') {
+        action.then(function (u) { return applyUpdate(setter, u); });
+    }
+    else {
+        applyUpdate(setter, action);
+    }
+};
+exports.bindAction = function (setter, action) {
     return function () {
         var args = [];
         for (var _i = 0; _i < arguments.length; _i++) {
             args[_i] = arguments[_i];
         }
-        return setter(function (s) {
-            var res = action.apply(void 0, __spreadArrays([s], args));
-            if (Array.isArray(res)) {
-                var partial = res[0], p = res[1];
-                return exports.assignPartial(s, partial);
-            }
-            else {
-                res.then(function (v) {
-                    return (typeof v == 'function') ?
-                        setter(function (s) { return exports.assignPartial(s, v(s)); })
-                        : setter(function (s) { return exports.assignPartial(s, v); });
-                });
-                return s;
-            }
-        });
+        return executeAction(setter, action.apply(void 0, args));
     };
 };
 exports.objectMap = function (object, mapFn) {
@@ -127,12 +129,12 @@ exports.objectMap = function (object, mapFn) {
         return result;
     }, {});
 };
-var bindSyncActions = function (acts, setter) {
-    return exports.objectMap(acts, function (act) { return bindAction(setter, act); });
+exports.actions = function (setter, actions) {
+    return exports.objectMap(actions, function (action) { return exports.bindAction(setter, action); });
 };
-var bindAsyncActions = function (acts, setter) {
-    return exports.objectMap(acts, function (act) { return bindAsyncAction(setter, act); });
+exports.yield_and = function (update, promise) {
+    return ['yield_and', update, promise];
 };
-exports.actions = function (acts, asyncActs, setter) {
-    return Object.assign(bindSyncActions(acts, setter), bindAsyncActions(asyncActs, setter));
+exports.yield_then = function (update, promise) {
+    return ['yield_then', update, promise];
 };

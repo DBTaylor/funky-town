@@ -37,14 +37,19 @@ export declare function over<T, U extends keyof T, V extends keyof T[U], W exten
 export declare function over<T, U extends keyof T, V extends keyof T[U], W extends keyof T[U][V], X extends keyof T[U][V][W]>(source: T, path: readonly [U, V, W, X], f: (_: T[U][V][W][X]) => T[U][V][W][X]): T;
 export declare function over<T, U extends keyof T, V extends keyof T[U], W extends keyof T[U][V], X extends keyof T[U][V][W], Y extends keyof T[U][V][W][X]>(source: T, path: readonly [U, V, W, X, Y], f: (_: T[U][V][W][X][Y]) => T[U][V][W][X][Y]): T;
 export declare function over<T, U extends keyof T, V extends keyof T[U], W extends keyof T[U][V], X extends keyof T[U][V][W], Y extends keyof T[U][V][W][X], Z extends keyof T[U][V][W][X][Y]>(source: T, path: readonly [U, V, W, X, Y, Z], f: (_: T[U][V][W][X][Y][Z]) => T[U][V][W][X][Y][Z]): T;
-export declare type UnboundAction<S, Args extends any[]> = (s: S, ...args: Args) => Partial<S>;
-export declare type UnboundAsyncAction<S, Args extends any[]> = ((s: S, ...args: Args) => Promise<((s: S) => Partial<S>) | Partial<S>>) | ((s: S, ...args: Args) => [Partial<S>, Promise<((s: S) => Partial<S>) | Partial<S>>]);
+export declare type Update<S> = Partial<S> | ((s: S) => Partial<S>);
+export declare type Action<S> = Update<S> | Promise<Update<S>> | ['yield_and', Update<S>, Promise<Action<S>>] | ['yield_then', Update<S>, Promise<(s: S) => Action<S>>];
+export declare type Setter<S> = (f: (s: S) => S) => unknown;
+export declare type UnboundAction<S, Args extends any[]> = ((...args: Args) => Action<S>);
 export declare const assignPartial: <S>(s: S, p: Partial<S>) => S;
+export declare const bindAction: <S, Args extends any[]>(setter: Setter<S>, action: UnboundAction<S, Args>) => (...args: Args) => void;
 export declare type All<T> = {
     [P: string]: T;
 };
-export declare const objectMap: <T>(object: object, mapFn: (p: never) => T) => All<T>;
-export declare const actions: <S, Acts extends All<UnboundAction<S, any[]>>, AsyncActs extends All<UnboundAsyncAction<S, any[]>>>(acts: Acts, asyncActs: AsyncActs, setter: (f: (s: S) => S) => unknown) => BoundActions<Acts> & BoundActions<AsyncActs>;
+export declare const objectMap: <T extends any>(object: object, mapFn: (p: never) => T) => All<T>;
+export declare const actions: <S, Acts extends All<UnboundAction<S, any[]>>>(setter: Setter<S>, actions: Acts) => BoundActions<Acts>;
 export declare type BoundActions<T> = {
-    [P in keyof T]: T[P] extends UnboundAction<infer S, infer Args> ? (...args: Args) => unknown : T[P] extends UnboundAsyncAction<infer S, infer Args> ? (...args: Args) => unknown : never;
+    [P in keyof T]: T[P] extends UnboundAction<infer S, infer Args> ? (...args: Args) => unknown : never;
 };
+export declare const yield_and: <S>(update: Update<S>, promise: Promise<Action<S>>) => ["yield_and", Update<S>, Promise<Action<S>>];
+export declare const yield_then: <S>(update: Update<S>, promise: Promise<(s: S) => Action<S>>) => ["yield_then", Update<S>, Promise<(s: S) => Action<S>>];

@@ -589,14 +589,14 @@ export function over<T,
     return dest
 }
 
-
 export type Update<S> = Partial<S> | ((s: S) => Partial<S>)
 
 export type Action<S> = 
     | Update<S>
     | Promise<Update<S>>
-    | ['yield_and', Update<S>, Promise<Action<S>>]
-    | ['yield_then', Update<S>, Promise<(s: S) => Action<S>>]
+    | ['decideAction', (s: S) => Action<S>]
+    | ['thenAction', Promise<Action<S>>]
+    | ['yieldThen', Update<S>, Promise<Action<S>>]
 
 export type Setter<S> = (f: (s: S) => S) => unknown
 
@@ -612,20 +612,21 @@ const applyUpdate = <S>(setter: Setter<S>, update: Update<S>) =>
             (s: S) => assignPartial(s, (typeof update == 'function') ? update(s) : update)
     )
 
-
 const executeAction = <S>(setter: Setter<S>, action: Action<S>) => {
     if (Array.isArray(action)){
-        if (action[0] == 'yield_and'){
-            applyUpdate(setter, action[1]);
+        if (action[0] == 'yieldThen'){
+            applyUpdate(setter, action[1] as Update<S>);
             (action[2] as Promise<Action<S>>).then((a: Action<S>) => executeAction(setter, a))
         }
-        else{
-            applyUpdate(setter, action[1]);
-            (action[2] as Promise<(s: S) => Action<S>>).then((a: (s: S) => Action<S>) => 
+        else if (action[0] == 'decideAction'){
                 setter((s: S) => {
-                    setTimeout(() => executeAction(setter, a(s)), 0)
+                    setTimeout(() => executeAction(setter, (action[1] as (s: S) => Action<S>)(s)), 0)
                     return s
                 })
+        }
+        else if (action[0] == 'thenAction') {
+            (action[1] as Promise<Action<S>>).then((a: Action<S>) => 
+                executeAction(setter, a)
             )
         }
         return
@@ -646,7 +647,7 @@ export type All<T> = {
     [P: string]: T;
 }
 
-export const objectMap = <T extends any>(object: object, mapFn: (p: object[(keyof object)]) => T): All<T> =>
+export const objectMap = <T>(object: object, mapFn: (p: object[(keyof object)]) => T): All<T> =>
     Object.keys(object).reduce(function(result, key) {
         (result as any)[key] = mapFn(object[key as never])
         return result as any
@@ -662,8 +663,11 @@ export type BoundActions<T> = {
         : never
 }
 
-const yield_and = <S>(update: Update<S>, promise: Promise<Action<S>>) =>
-    ['yield_and', update, promise] as ['yield_and', Update<S>, Promise<Action<S>>]
+export const yieldThen = <S extends any>(update: Update<S>, promise: Promise<Action<S>>) =>
+    ['yieldThen', update, promise] as ['yieldThen', Update<S>, Promise<Action<S>>]
 
-const yield_then = <S>(update: Update<S>, promise: Promise<(s: S) => Action<S>>) =>
-    ['yield_then', update, promise] as ['yield_then', Update<S>, Promise<(s: S) => Action<S>>]
+export const decideAction = <S extends any>(f: (s: S) => Action<S>) =>
+    ['decideAction', f] as ['decideAction', (s: S) => Action<S>]
+
+export const thenAction = <S>(p: Promise<Action<S>>) =>
+    ['thenAction', p] as ['thenAction', Promise<Action<S>>]
