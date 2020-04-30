@@ -1,6 +1,6 @@
 {
   "name": "funky-toun",
-  "version": "3.0.2",
+  "version": "3.1.0",
   "description": "Funktional Utility Library",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -13,5 +13,9 @@
     "url": "https://github.com/dbtaylor/funky-town"
   },
   "author": "David Taylor",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@types/react": "^16.9.34",
+    "react": "^16.13.1"
+  }
 }

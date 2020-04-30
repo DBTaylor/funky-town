@@ -1,3 +1,5 @@
+import {useState, useRef, useEffect} from 'react'
+
 export const never = (_: never): never => _
 
 export const fix = <X extends any[], Y> (f: (f: (...args: X) => Y) => (...args: X) => Y) => (...args: X):Y =>
@@ -589,54 +591,64 @@ export function over<T,
     return dest
 }
 
-export type Update<S> = Partial<S> | ((s: S) => Partial<S>)
-
 export type Action<S> = 
-    | Update<S>
-    | Promise<Update<S>>
-    | ['decideAction', (s: S) => Action<S>]
-    | ['thenAction', Promise<Action<S>>]
-    | ['yieldThen', Update<S>, Promise<Action<S>>]
+    | Partial<S>
+    | Promise<Action<S>>
+    | ((s: S) => Action<S>)
+    | Action<S>[]
 
 export type Setter<S> = (f: (s: S) => S) => unknown
 
 export type UnboundAction<S, Args extends any[]> = ((...args: Args) => Action<S>)
 
-export const assignPartial = <S>(s: S, p: Partial<S>): S => {
-    const obj = Object.assign({}, s)
-    return Object.assign(obj, p)
+export const merge = <T, U>(t: T, u: U): T & U => {
+    const obj = Object.assign({}, t)
+    return Object.assign(obj, u)
 }
 
-const applyUpdate = <S>(setter: Setter<S>, update: Update<S>) => 
-    setter(
-            (s: S) => assignPartial(s, (typeof update == 'function') ? update(s) : update)
-    )
-
-const executeAction = <S>(setter: Setter<S>, action: Action<S>) => {
-    if (Array.isArray(action)){
-        if (action[0] == 'yieldThen'){
-            applyUpdate(setter, action[1] as Update<S>);
-            (action[2] as Promise<Action<S>>).then((a: Action<S>) => executeAction(setter, a))
+export const handleRes = <S>(s: S, res: Action<S>, setter: Setter<S>): S => {
+    if (Array.isArray(res)){
+        const a = res.shift()
+        if(a){
+            setTimeout(() => executeAction(setter, res), 0)
+            return handleRes(s, a, setter)
         }
-        else if (action[0] == 'decideAction'){
-                setter((s: S) => {
-                    setTimeout(() => executeAction(setter, (action[1] as (s: S) => Action<S>)(s)), 0)
-                    return s
-                })
+        else{
+            return s
         }
-        else if (action[0] == 'thenAction') {
-            (action[1] as Promise<Action<S>>).then((a: Action<S>) => 
-                executeAction(setter, a)
-            )
-        }
-        return
     }
-     if (typeof (action as any).then == 'function'){
-         (action as Promise<Update<S>>).then(u => applyUpdate(setter, u))
-     }
-     else{
-         applyUpdate(setter, action as Update<S>)
-     }
+    else if (typeof (res as any).then == 'function'){
+        (res as Promise<Action<S>>).then(a => executeAction(setter, a))
+        return s
+    }
+    else if (typeof res == 'function'){
+            return handleRes(s, res(s), setter)
+    }
+    else{
+        return merge(s, res as Partial<S>)
+    }
+}
+
+export const executeAction = <S>(setter: Setter<S>, action: Action<S>) => {
+    if (Array.isArray(action)){
+        const a = action.shift()
+        if(a){
+            executeAction(setter, a)
+            executeAction(setter, action)
+        }
+    }
+    else if (typeof (action as any).then == 'function'){
+        (action as Promise<Action<S>>).then(a => executeAction(setter, a))
+    }
+    else if (typeof action == 'function'){
+        setter(s => {
+            const res = action(s)
+            return handleRes(s, res, setter)
+        })
+    }
+    else{
+        setter(s => merge(s, action as Partial<S>))
+    }
 }
 
 export const bindAction = <S, Args extends any[]>(setter: Setter<S>, action: UnboundAction<S, Args>) => 
@@ -653,7 +665,7 @@ export const objectMap = <T>(object: object, mapFn: (p: object[(keyof object)]) 
         return result as any
     }, {}) as All<T>
 
-export const actions = <S, Acts extends All<UnboundAction<S, any[]>>>(setter: Setter<S>, actions: Acts): BoundActions<Acts> =>
+export const bindActions = <S, Acts extends All<UnboundAction<S, any[]>>>(setter: Setter<S>, actions: Acts): BoundActions<Acts> =>
     objectMap(actions, (action) => bindAction(setter, action)) as any
 
 export type BoundActions<T> = {
@@ -663,11 +675,27 @@ export type BoundActions<T> = {
         : never
 }
 
-export const yieldThen = <S extends any>(update: Update<S>, promise: Promise<Action<S>>) =>
-    ['yieldThen', update, promise] as ['yieldThen', Update<S>, Promise<Action<S>>]
-
-export const decideAction = <S extends any>(f: (s: S) => Action<S>) =>
-    ['decideAction', f] as ['decideAction', (s: S) => Action<S>]
-
-export const thenAction = <S>(p: Promise<Action<S>>) =>
-    ['thenAction', p] as ['thenAction', Promise<Action<S>>]
+export const useAnimation = <T extends HTMLElement>(startClass: string, otherClass: string, startTrigger?: boolean): [React.RefObject<T>, string, () => unknown] => {
+    const [startAnimation, setStartAnimation] = useState(false)
+    const ref = useRef<T>(null)
+    if(startTrigger)
+        setStartAnimation(true)
+    useEffect(
+        ()=>{
+        if(startAnimation){
+            ref.current?.offsetHeight
+            setStartAnimation(false)
+        }
+        }, [startAnimation]
+    )
+    return [ref, startAnimation ? startClass : otherClass, () => setStartAnimation(true)]
+}
+  
+export const useValueChange = (v?: any) => {
+    const[prev, setPrev] = useState(v)
+    if (v !== prev){
+        setPrev(v)
+        return true
+    }
+    return false
+}

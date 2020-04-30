@@ -83,35 +83,51 @@ function over(source, path, f) {
     return dest;
 }
 exports.over = over;
-exports.assignPartial = function (s, p) {
-    var obj = Object.assign({}, s);
-    return Object.assign(obj, p);
+exports.merge = function (t, u) {
+    var obj = Object.assign({}, t);
+    return Object.assign(obj, u);
 };
-var applyUpdate = function (setter, update) {
-    return setter(function (s) { return exports.assignPartial(s, (typeof update == 'function') ? update(s) : update); });
-};
-var executeAction = function (setter, action) {
-    if (Array.isArray(action)) {
-        if (action[0] == 'yield_and') {
-            applyUpdate(setter, action[1]);
-            action[2].then(function (a) { return executeAction(setter, a); });
+exports.handleRes = function (s, res, setter) {
+    if (Array.isArray(res)) {
+        var a = res.shift();
+        if (a) {
+            setTimeout(function () { return exports.executeAction(setter, res); }, 0);
+            return exports.handleRes(s, a, setter);
         }
         else {
-            applyUpdate(setter, action[1]);
-            action[2].then(function (a) {
-                return setter(function (s) {
-                    setTimeout(function () { return executeAction(setter, a(s)); }, 0);
-                    return s;
-                });
-            });
+            return s;
         }
-        return;
     }
-    if (typeof action.then == 'function') {
-        action.then(function (u) { return applyUpdate(setter, u); });
+    else if (typeof res.then == 'function') {
+        res.then(function (a) { return exports.executeAction(setter, a); });
+        return s;
+    }
+    else if (typeof res == 'function') {
+        return exports.handleRes(s, res(s), setter);
     }
     else {
-        applyUpdate(setter, action);
+        return exports.merge(s, res);
+    }
+};
+exports.executeAction = function (setter, action) {
+    if (Array.isArray(action)) {
+        var a = action.shift();
+        if (a) {
+            exports.executeAction(setter, a);
+            exports.executeAction(setter, action);
+        }
+    }
+    else if (typeof action.then == 'function') {
+        action.then(function (a) { return exports.executeAction(setter, a); });
+    }
+    else if (typeof action == 'function') {
+        setter(function (s) {
+            var res = action(s);
+            return exports.handleRes(s, res, setter);
+        });
+    }
+    else {
+        setter(function (s) { return exports.merge(s, action); });
     }
 };
 exports.bindAction = function (setter, action) {
@@ -120,7 +136,7 @@ exports.bindAction = function (setter, action) {
         for (var _i = 0; _i < arguments.length; _i++) {
             args[_i] = arguments[_i];
         }
-        return executeAction(setter, action.apply(void 0, args));
+        return exports.executeAction(setter, action.apply(void 0, args));
     };
 };
 exports.objectMap = function (object, mapFn) {
@@ -129,12 +145,6 @@ exports.objectMap = function (object, mapFn) {
         return result;
     }, {});
 };
-exports.actions = function (setter, actions) {
+exports.bindActions = function (setter, actions) {
     return exports.objectMap(actions, function (action) { return exports.bindAction(setter, action); });
-};
-exports.yield_and = function (update, promise) {
-    return ['yield_and', update, promise];
-};
-exports.yield_then = function (update, promise) {
-    return ['yield_then', update, promise];
 };
