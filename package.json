@@ -1,6 +1,6 @@
 {
   "name": "funky-toun",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "Funktional Utility Library",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -14,8 +14,11 @@
   },
   "author": "David Taylor",
   "license": "MIT",
-  "dependencies": {
-    "@types/react": "^16.9.34",
-    "react": "^16.13.1"
+  "dependencies": {},
+  "devDependencies": {
+    "@types/react": "^16.9.34"
+  },
+  "peerDependencies": {
+    "react": "^16.8.0"
   }
 }
