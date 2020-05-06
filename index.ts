@@ -699,3 +699,10 @@ export const useValueChange = (v?: any) => {
     }
     return false
 }
+
+export const useOnce = () => {
+    const[once, setOnce] = useState(true)
+    if(once)
+        setOnce(false)
+    return once
+}
