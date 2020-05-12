@@ -659,11 +659,11 @@ export type All<T> = {
     [P: string]: T;
 }
 
-export const objectMap = <T>(object: object, mapFn: (p: object[(keyof object)]) => T): All<T> =>
+export const objectMap = (object: object, mapFn: (p: object[(keyof object)]) => any): object =>
     Object.keys(object).reduce(function(result, key) {
         (result as any)[key] = mapFn(object[key as never])
         return result as any
-    }, {}) as All<T>
+    }, {})
 
 export const bindActions = <S, Acts extends All<UnboundAction<S, any[]>>>(setter: Setter<S>, actions: Acts): BoundActions<Acts> =>
     objectMap(actions, (action) => bindAction(setter, action)) as any
@@ -706,3 +706,47 @@ export const useOnce = () => {
         setOnce(false)
     return once
 }
+
+export class Signal<T>{
+    private _value: T;
+    private subscribers = [] as ((value: T) => unknown)[] 
+
+    constructor(value: T){
+        this._value = value
+    }
+
+    public write(value: T){
+        const changed = this._value != value
+        this._value = value
+        if(changed)
+            this.subscribers.forEach(s => s(value))
+    }
+
+    public subscribe(f: (value: T) => unknown){
+        this.subscribers.push(f)
+    }
+
+    public unsubscribe(f: (value: T) => unknown){
+        this.subscribers.splice(this.subscribers.findIndex(s => s == f), 1)
+    }
+
+    public get value(){
+        return this._value
+    }
+}
+
+export const useSignal = <T>(signal: Signal<T>) => {
+    const [state, setState] = useState(signal.value)
+    useEffect(() => {
+        const callback = (value: T) => setState(value)
+        signal.subscribe(callback)
+        return () => signal.unsubscribe(callback)
+    }, [])
+    return state
+}
+
+export type Signals<T> = {
+    [P in keyof T]: Signal<T[P]>
+}
+
+export const signals = <T extends object>(obj: object): Signals<T> => objectMap(obj, p => new Signal(p)) as any
